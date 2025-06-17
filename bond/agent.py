@@ -2,6 +2,13 @@ import typing as T
 import threading
 import os
 
+
+from prompt_toolkit import Application
+from prompt_toolkit.key_binding import KeyBindings
+from prompt_toolkit.layout import Layout
+from prompt_toolkit.layout.containers import Window
+from prompt_toolkit.layout.controls import FormattedTextControl
+
 from bond.config import Config
 from bond.llm import (
     LLM,
@@ -93,6 +100,28 @@ class NicePrint:
                     result.append(line)
 
         print("\n".join(result))
+
+
+def get_user_perm():
+    NicePrint.middle("Allow this function to run? (y/n)")
+    result = {}
+
+    kb = KeyBindings()
+
+    @kb.add("<any>")
+    def _(event):
+        k = event.key_sequence[0].key.lower()
+        if k in ("y", "n"):
+            result["key"] = k
+            event.app.exit()
+
+    dummy_layout = Layout(Window(FormattedTextControl(""), height=1))
+
+    app = Application(
+        key_bindings=kb, layout=dummy_layout, full_screen=False, mouse_support=False
+    )
+    app.run()
+    return result["key"]
 
 
 class Agent:
@@ -189,12 +218,13 @@ class Agent:
     def on_function_call(self, call: FunctionCallMsg):
         self.thread.append(call)
 
-        if call.name == "begin_task":
+        if call.name == "begin_task" and not self.task_running:
             NicePrint.upper_b()
-            NicePrint.middle(f"STARTING TASK {call.params['name']}", self.task_running)
+            NicePrint.middle(f"STARTING TASK {call.params['name']}", True)
             self.fcall_set_task(**call.params)
 
-        elif call.name == "end_task":
+        elif call.name == "end_task" and self.task_running:
+            NicePrint.middle(f"ENDING TASK success={call.params['success']}", True)
             NicePrint.lower_b()
             self.fcall_return_control(**call.params)
 
@@ -202,18 +232,30 @@ class Agent:
             NicePrint.middle(
                 f"FUNCTION CALL: {call.name}({call.params})", self.task_running
             )
-            result = self.task_functions[call.name](**call.params)
-            result = str(result)
-            self.thread.append(FunctionResultMsg(call.name, str(result)))
+            if self.config.get("allow_all_function_calls", False):
+                user_perm = "y"
+            else:
+                user_perm = get_user_perm()
 
-            NicePrint.middle(
-                f"FUNCTION CALL RESULT ({len(result)} chars)", self.task_running
-            )
+            if user_perm == "y":
+                result = self.task_functions[call.name](**call.params)
+                result = str(result)
+                self.thread.append(FunctionResultMsg(call.name, str(result)))
 
-            n = int(self.config.get("function_call_results", 2000))
-            if n > 0:
-                NicePrint.left(result[:n], True)
+                NicePrint.middle(
+                    f"FUNCTION CALL FINISHED ({len(result)} chars)", self.task_running
+                )
 
+                n = int(self.config.get("print_fcall_results", 0))
+                if n > 0:
+                    NicePrint.left(result[:n], True)
+            else:
+                self.thread.append(
+                    FunctionResultMsg(
+                        call.name,
+                        "Failed to execute the function: user didn't allow this function call",
+                    )
+                )
         else:
             if not self.task_running:
                 NicePrint.middle(
@@ -227,7 +269,8 @@ class Agent:
                 )
             else:
                 NicePrint.middle(
-                    "FUNCTION CALL FAILED: function does not exist", self.task_running
+                    f"FUNCTION CALL FAILED: function {call.name} does not exist",
+                    self.task_running,
                 )
                 self.thread.append(
                     FunctionResultMsg(

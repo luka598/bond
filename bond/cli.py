@@ -4,10 +4,16 @@ import threading
 from prompt_toolkit import PromptSession
 from prompt_toolkit.history import FileHistory
 from prompt_toolkit.completion import Completer, Completion
+
+from prompt_toolkit import Application
+from prompt_toolkit.key_binding import KeyBindings
+
+
 from concurrent.futures import ThreadPoolExecutor
 
-from bond.config import Config
+from bond.config import Config, GLOBAL_CONFIG
 from bond.agent import Agent
+from bond.version_check import check_version
 
 
 class CommandRegistry:
@@ -53,7 +59,7 @@ class MyCompleter(Completer):
 
 class Cli:
     def __init__(self) -> None:
-        self.config = Config({})
+        self.config = GLOBAL_CONFIG
         try:
             self.config.merge(Config.from_file("~/.bond_conf.toml"))
         except Exception as e:
@@ -151,7 +157,23 @@ class Cli:
             self.agent.on_user_input(text)
 
 
+def get_char():
+    result = {}
+
+    kb = KeyBindings()
+
+    @kb.add("<any>")
+    def _(event):
+        result["key"] = event.key_sequence[0].key
+        event.app.exit()
+
+    app = Application(key_bindings=kb, full_screen=False)
+    app.run()
+    return result["key"]
+
+
 def cli():
     # print("The name is Bond. James Bond.")
+    check_version()
     cli = Cli()
     cli.run()

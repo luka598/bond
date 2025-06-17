@@ -2,8 +2,9 @@ import subprocess
 import shlex
 
 from bond.llm import FunctionType
+from bond.config import GLOBAL_CONFIG
 
-TIMEOUT = 30
+TIMEOUT = int(GLOBAL_CONFIG.get("bash_timeout", 30))
 
 
 def bash(command: str) -> dict:

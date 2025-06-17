@@ -4,10 +4,14 @@ from urllib.parse import quote
 import html2text
 import pycurl
 
+from bond.config import GLOBAL_CONFIG
 from bond.llm import FunctionType
 
 
 def web_search(query: str) -> str:
+    if not GLOBAL_CONFIG.get("enable_web_search", False):
+        return "Web search is disabled."
+
     curl = None
     body_buffer = BytesIO()
     header_buffer = BytesIO()

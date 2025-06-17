@@ -33,3 +33,6 @@ class Config:
 
     def merge(self, conf: "Config"):
         self._config.update(conf._config)
+
+
+GLOBAL_CONFIG = Config({})
