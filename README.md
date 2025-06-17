@@ -2,11 +2,15 @@
 
 ## Instalation
 
-`pip install --upgrade git+https://github.com/luka598/bond.git`
+```sh
+pip install --upgrade git+https://github.com/luka598/bond.git
+```
 
 ## Example config
 
 ### Gemini config
+
+Place it into either `~/.bond_conf.toml` or `./.bond_conf.toml`.
 
 ```toml
 llm = "gemini"
