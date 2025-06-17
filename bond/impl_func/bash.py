@@ -3,7 +3,7 @@ import shlex
 
 from bond.llm import FunctionType
 
-TIMEOUT = 10
+TIMEOUT = 30
 
 
 def bash(command: str) -> dict:
