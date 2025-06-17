@@ -1,6 +1,6 @@
 # Bond
 
-## Instalation
+## Installation
 
 ```sh
 pip install --upgrade git+https://github.com/luka598/bond.git
