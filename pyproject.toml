@@ -4,4 +4,13 @@ version = "0.1.0"
 description = "Add your description here"
 readme = "README.md"
 requires-python = ">=3.8"
-dependencies = []
+dependencies = [
+    "html2text>=2024.2.26",
+    "prompt-toolkit>=3.0.51",
+    "pycurl>=7.45.6",
+    "requests>=2.32.4",
+    "toml>=0.10.2",
+]
+
+[project.scripts]
+bond = "bond:cli"

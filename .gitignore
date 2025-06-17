@@ -8,3 +8,13 @@ wheels/
 
 # Virtual environments
 .venv
+
+# Env
+.env
+
+# Dev
+.notes
+
+# Bond
+.bond_history
+.bond_conf.toml
