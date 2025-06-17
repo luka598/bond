@@ -177,3 +177,6 @@ def cli():
     check_version()
     cli = Cli()
     cli.run()
+
+if __name__ == "__main__":
+    cli()
