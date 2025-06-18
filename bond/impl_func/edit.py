@@ -4,7 +4,7 @@ import os
 from bond.llm import FunctionType
 
 
-def _edit_text(path: str, edit_text: str) -> str:
+def _edit_text(path: str, begin_line: int, end_line: int, text: str) -> str:
     try:
         with open(path, "r", encoding="utf-8") as f:
             lines = f.readlines()
@@ -12,64 +12,33 @@ def _edit_text(path: str, edit_text: str) -> str:
         return f"Error: File '{path}' is not a valid UTF-8 text file."
 
     try:
-        lines: T.Sequence[T.Optional[str]] = [line.rstrip("\n") for line in lines]
+        lines = [line.rstrip("\n") for line in lines]
+        new_lines = text.splitlines()
 
-        for edit_cmd in edit_text.splitlines():
-            parts = edit_cmd.split("|", 2)
+        if begin_line < 0 or begin_line > len(lines):
+            return f"Error: Invalid begin_line {begin_line}. Must be between 0 and {len(lines)}"
+        if end_line < begin_line:
+            return f"Error: end_line ({end_line}) must be greater than begin_line ({begin_line})"
 
-            if len(parts) != 3:
-                return f"Error: Invalid text edit line format: '{edit_cmd}'. Expected 'NNNN|O|content'."
-
-            try:
-                line_num = int(parts[0])
-            except ValueError:
-                return f"Error: Invalid line number in text edit: '{parts[0]}'."
-
-            op = parts[1]
-            if op not in ("U", "D", "I"):
-                return f"Error: Invaid operation {parts[1]}. Expected U (update), D (delete) or I (insert)."
-
-            content = parts[2]
-
-            if line_num < len(lines):
-                if op == "U":
-                    lines[line_num] = content
-                elif op == "D":
-                    lines[line_num] = None
-
-            elif line_num == len(lines):
-                if op == "U":
-                    lines.append(content)
-                elif op == "D":
-                    lines.append(None)
-
-            else:
-                for _ in range(len(lines), line_num):
-                    lines.append("")
-
-                if op == "U":
-                    lines.append(content)
-                elif op == "D":
-                    lines.append(None)
+        lines[begin_line:end_line] = new_lines
 
         with open(path, "w", encoding="utf-8") as f:
-            f.write("\n".join([line for line in lines if line is not None]))
+            f.write("\n".join(lines))
 
-        with open(path, "r", encoding="utf-8") as f:
-            return "Success"
+        return "Success"
 
     except Exception as e:
         return f"Error editing text file: {e}"
 
 
-def edit(path: str, edit_text: str, fmt: str) -> str:
+def edit(path: str, begin_line: int, end_line: int, text: str, fmt: str) -> str:
     if not os.path.exists(path):
         return f"Error: File not found at {path}"
     if os.path.isdir(path):
         return f"Error: Path is a directory, not a file: {path}"
 
     if fmt == "text":
-        result = _edit_text(path, edit_text)
+        result = _edit_text(path, begin_line, end_line, text)
     elif fmt == "binary":
         return "Binary editing is not supported"
     else:
@@ -81,20 +50,22 @@ def edit(path: str, edit_text: str, fmt: str) -> str:
 FUNCTION = (
     FunctionType(
         "edit",
-        "Edits the content of a file (text or binary) and modifies the actual file on disk. Line count starts at 0.",
+        "Edits the content of a file by replacing text between specified line numbers. Line count starts at 0.",
         [
             FunctionType.Param("path", "string", "Path to the file to be edited."),
             FunctionType.Param(
-                "edit_text",
-                "string",
-                """"String containing the edits.
-                For 'text' format: each line 'NNNN|O|content'. N is line numeber. O is operation, it can either be update 'U' or 'D' delete.
-                For 'binary' format: each line 'XXXXXXXX|YY YY...' (hex bytes, no ASCII part).""",
+                "begin_line", "integer", "Starting line number (inclusive)."
+            ),
+            FunctionType.Param(
+                "end_line", "integer", "Ending line number (exclusive)."
+            ),
+            FunctionType.Param(
+                "text", "string", "New text to insert between begin_line and end_line."
             ),
             FunctionType.Param(
                 "fmt",
                 "string",
-                "Format of the file and edit_text: 'text' or 'binary'.",
+                "Format of the file: 'text' or 'binary'.",
             ),
         ],
     ),

@@ -72,38 +72,30 @@ class NicePrint:
     @staticmethod
     def left(text: str, border: bool = False) -> None:
         w, h = os.get_terminal_size()
-        max_width = w - (2 if border else 0)
+        max_w = w - (2 if border else 1)
 
         result = []
         lines = text.split("\n")
 
         for line in lines:
-            if len(line) > max_width:
-                chunks = [
-                    line[i : i + max_width] for i in range(0, len(line), max_width)
-                ]
-                for i, chunk in enumerate(chunks):
-                    if border:
-                        padding = " " * (max_width - len(chunk))
-                        result.append(
-                            f"{NicePrint.LINE_V}{chunk}{padding}{NicePrint.LINE_V}"
-                        )
-                    else:
-                        result.append(f"{chunk}{'>' if i < len(chunks) - 1 else ''}")
-            else:
+            while line:
                 if border:
-                    padding = " " * (max_width - len(line))
                     result.append(
-                        f"{NicePrint.LINE_V}{line}{padding}{NicePrint.LINE_V}"
+                        NicePrint.LINE_V
+                        + line[:max_w]
+                        + " " * (max_w - len(line[:max_w]))
+                        + NicePrint.LINE_V
                     )
                 else:
-                    result.append(line)
+                    result.append(line[:max_w])
+
+                line = line[max_w:]
 
         print("\n".join(result))
 
 
 def get_user_perm():
-    NicePrint.middle("Allow this function to run? (y/n)")
+    NicePrint.middle("Allow this function to run? (y/n)", True)
     result = {}
 
     kb = KeyBindings()
@@ -208,7 +200,8 @@ class Agent:
             self.thread.extend(response)
             for msg in response:
                 if isinstance(msg, TextMsg):
-                    NicePrint.left(msg.data, self.task_running)
+                    if len(msg.data) > 0:
+                        NicePrint.left(msg.data, self.task_running)
                 elif isinstance(msg, FunctionCallMsg):
                     self.on_function_call(msg)
                 else:
