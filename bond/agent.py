@@ -18,7 +18,7 @@ from bond.llm import (
     FunctionCallMsg,
     FunctionResultMsg,
 )
-from bond.prompts import SYSTEM_PROMPT, ENV_PROMPT
+from bond.prompts import SYSTEM_PROMPT, TOOLS_PROMPT, ENV_PROMPT
 from bond.impl_func.bash import FUNCTION as F_bash
 from bond.impl_func.view import FUNCTION as F_view
 from bond.impl_func.edit import FUNCTION as F_edit
@@ -192,7 +192,7 @@ class Agent:
         self.threads[self.current_thread] = []
 
         self.thread.append(TextMsg("system", ENV_PROMPT()))
-        # self.thread.append(TextMsg("system", TOOLS_PROMPT))
+        self.thread.append(TextMsg("system", TOOLS_PROMPT))
         self.thread.append(TextMsg("system", SYSTEM_PROMPT))
 
     def on_user_input(self, data: str):

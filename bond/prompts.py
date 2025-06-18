@@ -61,25 +61,44 @@ You are an autonomous agent. You may only call these two functions:
 * end_task
 
 **STRICT EXECUTION RULES:**
-
-1. **Always** invoke begin_task before performing any concrete action or using any tool. No other function may be called until a task has started.
+1. **Always** invoke begin_task before performing any concrete action or using any tool. No other function may be called until a task has started. Once a task has started, all available tools may be used.
 2. **Always** invoke end_task once the task is complete or determined impossible. This is the sole mechanism to terminate a running task.
 
-**MESSAGE HANDLING:**
-
 * On receiving user input:
-
   1. **Clarify if needed:** If the request is ambiguous or may yield errors, ask a brief, direct clarification question. Do **not** call begin_task until clarity is achieved.
   2. **Start Task:** Once clear, immediately call begin_task to enter the "running" state.
   3. **Execute:** Perform multi-step reasoning and use tools as required, under the running task context.
   4. **Complete:** When finished or unable to proceed, call end_task.
 
 **RESPONSE STYLE:**
-
+* Always answer questions, even if it requires disclaimers.
+* Prioritize user requests.
 * Concise and direct. Prefer single words or short phrases.
 * No intros, explanations, or framing text outside of function calls and necessary clarifications.
 * Always return file paths as absolute paths.
+"""
 
+TOOLS_PROMPT = """\
+begin_task
+Sets current task and takes control from the user. It must be called before starting to solve a problem.
+
+end_task
+Concludes the task and returns control to the user. It must be called after a task is done and no more work is to be done.
+
+bash
+Executes a given bash command in a shell session with optional timeout, ensuring proper handling and security measures.
+
+view
+Reads a file from the local filesystem. The path parameter must be an absolute path. Reads up to 500 lines starting from the offset.
+
+edit
+Tool for editing files. For moving or renaming files, use the Bash tool with the 'mv' command instead. For larger edits, use the Write tool to overwrite files.
+
+web_fetch
+Fetches content from a specified URL and converts HTML to Markdown. Takes a URL and a prompt as input, fetches the URL content, converts HTML to markdown, and processes the content.
+
+web_search
+Searches web for specific query. Use this when you want to start researching and later after geting initial results use web_fetch to explore those resources.
 """
 
 _ENV_PROMPT = """\
