@@ -5,7 +5,7 @@ import html2text
 import pycurl
 
 from bond.config import GLOBAL_CONFIG
-from bond.llm import FunctionType
+from bond.llm.interface import FunctionType
 
 
 def web_search(query: str) -> str:

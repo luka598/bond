@@ -1,5 +1,5 @@
 import os
-from bond.llm import FunctionType
+from bond.llm.interface import FunctionType
 
 
 def _is_text_file(path: str) -> bool:

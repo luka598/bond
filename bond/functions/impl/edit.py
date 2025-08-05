@@ -1,7 +1,7 @@
 import typing as T
 import os
 
-from bond.llm import FunctionType
+from bond.llm.interface import FunctionType
 
 
 def _edit_text(path: str, begin_line: int, end_line: int, text: str) -> str:

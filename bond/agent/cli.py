@@ -12,7 +12,7 @@ from prompt_toolkit.key_binding import KeyBindings
 from concurrent.futures import ThreadPoolExecutor
 
 from bond.config import Config, GLOBAL_CONFIG
-from bond.agent import Agent
+from bond.agent.agent import Agent
 from bond.version_check import check_version
 
 
@@ -129,14 +129,14 @@ class Cli:
 
         try:
             if self.config["llm"] == "oai":
-                from bond.impl_llm.oai.gpt import OAILLM
+                from bond.llm.impl.oai.oai import OAILLM
 
                 llm = OAILLM(self.config)
 
             elif self.config["llm"] == "gemini":
-                from bond.impl_llm.gemini.llm import GeminiLLM
+                from bond.llm.impl.gemini.oai import OAILLM
 
-                llm = GeminiLLM(self.config)
+                llm = OAILLM(self.config)
 
             else:
                 print(f"Unknown llm {args[0]}")
@@ -177,4 +177,3 @@ def cli():
     check_version()
     cli = Cli()
     cli.run()
-

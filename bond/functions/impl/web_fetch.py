@@ -1,5 +1,5 @@
 import requests
-from bond.llm import FunctionType
+from bond.llm.interface import FunctionType
 import html2text
 
 

@@ -10,7 +10,7 @@ from prompt_toolkit.layout.containers import Window
 from prompt_toolkit.layout.controls import FormattedTextControl
 
 from bond.config import Config
-from bond.llm import (
+from bond.llm.interface import (
     LLM,
     MSG_t,
     TextMsg,
@@ -18,12 +18,12 @@ from bond.llm import (
     FunctionCallMsg,
     FunctionResultMsg,
 )
-from bond.prompts import SYSTEM_PROMPT, TOOLS_PROMPT, ENV_PROMPT
-from bond.impl_func.bash import FUNCTION as F_bash
-from bond.impl_func.view import FUNCTION as F_view
-from bond.impl_func.edit import FUNCTION as F_edit
-from bond.impl_func.web_fetch import FUNCTION as F_web_fetch
-from bond.impl_func.web_search import FUNCTION as F_web_search
+from bond.agent.prompts import SYSTEM_PROMPT, TOOLS_PROMPT, ENV_PROMPT
+from bond.functions.impl.bash import FUNCTION as F_bash
+from bond.functions.impl.view import FUNCTION as F_view
+from bond.functions.impl.edit import FUNCTION as F_edit
+from bond.functions.impl.web_fetch import FUNCTION as F_web_fetch
+from bond.functions.impl.web_search import FUNCTION as F_web_search
 
 
 class NicePrint:

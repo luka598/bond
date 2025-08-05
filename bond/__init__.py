@@ -1,2 +1,3 @@
-from bond.cli import cli
+from bond.agent.run import run
 
+__all__ = ["run"]
