@@ -1,4 +1,4 @@
-from bond.lib.llm.impl.oai_old import OAILLM
+from bond.lib.llm.impl.openai_old import OpenAILLM
 
-class GeminiLLM(OAILLM):
+class GeminiLLM(OpenAILLM):
     ENDPOINT = "https://generativelanguage.googleapis.com/v1beta/openai/chat/completions"

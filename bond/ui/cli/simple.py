@@ -5,9 +5,10 @@ from prompt_toolkit import PromptSession
 from prompt_toolkit.history import InMemoryHistory
 from prompt_toolkit import print_formatted_text
 from prompt_toolkit.patch_stdout import patch_stdout
+from prompt_toolkit.key_binding import KeyBindings
+from prompt_toolkit.formatted_text import ANSI, to_formatted_text
 from rich.markdown import Markdown
 from rich.console import Console
-from prompt_toolkit.formatted_text import ANSI, to_formatted_text
 
 from bond.config import Config
 from bond.lib.agent.main import Agent
@@ -18,18 +19,32 @@ from bond.lib.llm.interface import (
     FunctionResultMsg,
     ErorrMsg,
 )
-from bond.lib.llm.impl.gemini_oai import GeminiLLM
 
 
 class Simple:
     def __init__(self, conf: Config) -> None:
         self.conf = conf
+
+        kb = KeyBindings()
+        kb.add("c-c")(lambda event: None)  # TODO: STOP EXECUTION
+        kb.add("c-d")(lambda event: event.app.exit(exception=KeyboardInterrupt))
+        kb.add("escape", "enter")(lambda event: event.current_buffer.insert_text("\n"))
+
         self.session = PromptSession(
             history=InMemoryHistory(),
             show_frame=True,
             bottom_toolbar=self.bottom_toolbar,
+            key_bindings=kb,
         )
-        self.agent = Agent(GeminiLLM(conf), self.handle_msg)
+
+        if self.conf["provider"]["name"] == "gemini":
+            from bond.lib.llm.impl.gemini_oai import GeminiLLM
+
+            self.agent = Agent(conf, GeminiLLM(conf), self.handle_msg)
+        elif self.conf["provider"]["name"] == "openai":
+            from bond.lib.llm.impl.openai import OpenAILLM
+
+            self.agent = Agent(conf, OpenAILLM(conf), self.handle_msg)
 
     def handle_msg(self, msg: MSG_t):
         if isinstance(msg, TextMsg):
@@ -73,30 +88,36 @@ class Simple:
 
         elif isinstance(msg, FunctionResultMsg):
             R = "\033[0m"
-            G = "\033[32m"  # Green
-            Y = "\033[33m"  # Yellow (for star and arg keys)
-            O = "\033[93m"  # Bright Yellow (often renders as orange/amber)
-            W = "\033[37m"  # White
+            G = "\033[32m"
+            Y = "\033[33m"
             # STAR = f"{Y}*{R}"
             STAR = f"{Y}✓{R}"
             MAX_LEN = 32
 
-            print_formatted_text(
-                to_formatted_text(
-                    ANSI(f"{STAR} {G}{msg.name}{R}")
-                )
-            )
+            print_formatted_text(to_formatted_text(ANSI(f"{STAR} {G}{msg.name}{R}")))
 
         elif isinstance(msg, ErorrMsg):
-            print_formatted_text(
-                to_formatted_text(ANSI(f" \033[31mError: {msg.data}\033[0m"))
-            )
+            txt = ""
+            txt += f"\033[31mError: {msg.data}\033[0m"
+            if self.conf.get("debug", False):
+                txt += f"\n{msg.ext}"
+
+            print_formatted_text(to_formatted_text(ANSI(txt)))
 
         else:
             print_formatted_text(f"? {msg.__dict__}")
 
     def bottom_toolbar(self):
-        return f"{'WORKING' if self.agent.busy else 'READY'}"
+        s = ""
+        s += f"{self.conf['provider']['name']:<10} | "
+        s += f"{self.conf['provider']['model']:<10} | "
+        s += f"{'WORKING' if self.agent.busy else 'READY':<10}"
+        s += " |==| "
+        s += "Enter: Send | "
+        s += "C-c: Stop | "
+        s += "C-d: Exit | "
+        s += "Alt-Enter: Newline"
+        return s
 
     def loop(self):
         try:

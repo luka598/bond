@@ -40,7 +40,7 @@ class ProcFunction(Function):
     FUNCTION_t = FunctionType(
         "proc",
         "Starts a process and returns its output. Make sure you split the args properly.",
-        [FunctionType.Param("args", "array", "args that will be used to run a program where args[0] is the program")],
+        [FunctionType.ParamArray("args", "string", "args that will be used to run a program where args[0] is the program")],
     )
     CALLABLE = proc
 

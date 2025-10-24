@@ -46,17 +46,17 @@ class EditFunction(Function):
         "edit",
         "Edits the content of a file by replacing text between specified line numbers. Line numbers start at 0.",
         [
-            FunctionType.Param("path", "string", "Path to the file to be edited."),
-            FunctionType.Param(
+            FunctionType.ParamLiteral("path", "string", "Path to the file to be edited."),
+            FunctionType.ParamLiteral(
                 "begin_line", "integer", "Starting line number (inclusive)."
             ),
-            FunctionType.Param(
+            FunctionType.ParamLiteral(
                 "end_line", "integer", "Ending line number (exclusive)."
             ),
-            FunctionType.Param(
+            FunctionType.ParamLiteral(
                 "text", "string", "New text to insert between begin_line and end_line."
             ),
-            FunctionType.Param(
+            FunctionType.ParamLiteral(
                 "fmt",
                 "string",
                 "Format of the file: 'text' or 'binary'.",

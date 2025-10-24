@@ -42,15 +42,29 @@ class ErorrMsg:
 
 MSG_t = T.Union[TextMsg, ImageMsg, FunctionCallMsg, FunctionResultMsg, ErorrMsg]
 
+class FunctionParamLiteral:
+    def __init__(self, name: str, type: T.Literal["string", "integer"], description: str) -> None:
+        self.name = name
+        self.type = type
+        self.description = description
+
+
+class FunctionParamArray:
+    def __init__(self, name: str, type: T.Literal["string", "integer"], description: str) -> None:
+        self.name = name
+        self.type = type
+        self.description = description
 
 class FunctionType:
-    Param = namedtuple("function_param", ["name", "type", "description"])
+    ParamLiteral = FunctionParamLiteral
+    ParamArray = FunctionParamArray
 
     def __init__(
         self,
         name: str,
         description: str,
-        params: T.List["FunctionType.Param"],
+        # params: T.List[T.Union["FunctionType.ParamLiteral", "FunctionType.ParamArray"]],
+        params: T.List[T.Union[FunctionParamLiteral, FunctionParamArray]],
     ) -> None:
         self.name = name
         self.description = description

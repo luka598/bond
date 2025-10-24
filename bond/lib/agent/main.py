@@ -3,7 +3,7 @@ import typing as T
 import uuid
 from queue import Queue
 
-from bond.config import GLOBAL_CONFIG
+from bond.config import Config
 from bond.lib.llm.interface import (
     LLM,
     MSG_t,
@@ -48,7 +48,9 @@ class Chat:
 
 
 class Agent:
-    def __init__(self, llm: LLM, cb: T.Callable[[MSG_t], None]) -> None:
+    def __init__(self, config: Config, llm: LLM, cb: T.Callable[[MSG_t], None]) -> None:
+        self.conf = config
+
         self.chat = Chat(llm)
         self.cb = cb
 
@@ -87,9 +89,7 @@ class Agent:
                 if isinstance(msg, FunctionCallMsg):
                     res = functions[msg.name].CALLABLE(**msg.params)
                     self.message_queue.put(FunctionResultMsg(msg.name, res))
-                    self.message_queue.put(
-                        TextMsg(
-                            "user",
-                            "Respond to the users original query that lead you to function call.",
-                        )
-                    )
+
+                    if self.conf.get("provider", {}).get("name") == "gemini":
+                        # gemini does not work properly without this
+                        self.message_queue.put(TextMsg("user", ""))

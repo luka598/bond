@@ -42,7 +42,7 @@ def convert_msg(msg: MSG_t):
         return convert_msg(
             TextMsg(
                 "system",
-                "FUNCTION CALL RESULT (USER CANT SEE THIS): "
+                "FUNCTION CALL RESULT: "
                 + json.dumps({"name": msg.name, "content": msg.data}),
             )
         )
@@ -55,29 +55,40 @@ def convert_msg(msg: MSG_t):
 
 
 def convert_function(f: FunctionType):
+    properties = {}
+    required = []
+    for p in f.params:
+        required.append(p.name)
+        if isinstance(p, f.ParamLiteral):
+            properties[p.name] = {
+                "type": p.type,
+                "description": p.description,
+            }
+        elif isinstance(p, f.ParamArray):
+            properties[p.name] = {
+                "type": "array",
+                "items": {"type": p.type},
+                "description": p.description,
+            }
+
     return {
-        "type": "function",
-        "function": {
-            "name": f.name,
-            "description": f.description,
-            "parameters": {
-                "type": "object",
-                "properties": {
-                    n: {"type": t, "description": d} for (n, t, d) in f.params
-                },
-                "required": [n for (n, _, _) in f.params],
-            },
+        "name": f.name,
+        "description": f.description,
+        "parameters": {
+            "type": "object",
+            "properties": properties,
+            "required": required,
         },
     }
 
 
-class OAILLM(LLM):
-    ENDPOINT = ""
+class OpenAILLM(LLM):
+    ENDPOINT = "https://api.openai.com/v1/chat/completions"
 
     def __init__(self, config: Config) -> None:
         super().__init__(config)
         self.api_key = self.config["provider"]["api_key"]
-        self.model_name = self.config["provider"]["model"]
+        self.model = self.config["provider"]["model"]
 
         self.HEADERS = {
             "Authorization": f"Bearer {self.api_key}",
@@ -87,27 +98,26 @@ class OAILLM(LLM):
     def send(
         self, messages: T.List[MSG_t], functions: T.List[FunctionType]
     ) -> T.List[MSG_t]:
-        payload = {
-            "model": self.model_name,
-            # "reasoning_effort": "high",
-            "messages": [convert_msg(m) for m in messages],
-        }
+        payload = {"model": self.model, "messages": [convert_msg(m) for m in messages]}
 
         if functions:
-            payload["tools"] = [convert_function(f) for f in functions]
-            payload["tool_choice"] = "auto"
+            payload["functions"] = [convert_function(f) for f in functions]
+            payload["function_call"] = "auto"
+
+        if self.config.get("debug", False):
+            print("SENDING", payload)
 
         resp = requests.post(self.ENDPOINT, headers=self.HEADERS, json=payload)
+
         if resp.status_code != 200:
-            return [ErorrMsg(f"Response status code: {resp.status_code} != 200", resp.text)]
+            return [
+                ErorrMsg(f"Response status code: {resp.status_code} != 200", resp.text)
+            ]
         j = resp.json()
 
-        finish_reason = j["choices"][0]["finish_reason"]
         choice = j["choices"][0]["message"]
-        if finish_reason == "tool_calls":
-            fcall = choice.get("tool_calls")[0]["function"]
+        fcall = choice.get("function_call")
+        if fcall:
             return [FunctionCallMsg(fcall["name"], json.loads(fcall["arguments"]))]
-        elif "content" not in choice:
-            return []
         else:
             return [TextMsg("llm", choice["content"])]

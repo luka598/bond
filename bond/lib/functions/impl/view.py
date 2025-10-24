@@ -48,8 +48,8 @@ class ViewFunction(Function):
         "view",
         "Views the content of a file (text or binary). Line numbers start at 0.",
         [
-            FunctionType.Param("path", "string", "Path to the file."),
-            FunctionType.Param(
+            FunctionType.ParamLiteral("path", "string", "Path to the file."),
+            FunctionType.ParamLiteral(
                 "offset",
                 "integer",
                 "Starting offset (line number for text, byte for binary). If unsure set to 0.",
