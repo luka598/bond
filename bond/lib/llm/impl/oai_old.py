@@ -2,7 +2,7 @@ import typing as T
 import json
 
 from bond.config import Config
-from bond.llm.interface import (
+from bond.lib.llm.interface import (
     LLM,
     MSG_t,
     ROLE_t,
@@ -10,6 +10,7 @@ from bond.llm.interface import (
     FunctionResultMsg,
     FunctionType,
     FunctionCallMsg,
+    ErorrMsg,
 )
 
 import requests
@@ -41,7 +42,7 @@ def convert_msg(msg: MSG_t):
         return convert_msg(
             TextMsg(
                 "system",
-                "FUNCTION CALL RESULT: "
+                "FUNCTION CALL RESULT (USER CANT SEE THIS): "
                 + json.dumps({"name": msg.name, "content": msg.data}),
             )
         )
@@ -55,23 +56,28 @@ def convert_msg(msg: MSG_t):
 
 def convert_function(f: FunctionType):
     return {
-        "name": f.name,
-        "description": f.description,
-        "parameters": {
-            "type": "object",
-            "properties": {n: {"type": t, "description": d} for (n, t, d) in f.params},
-            "required": [n for (n, _, _) in f.params],
+        "type": "function",
+        "function": {
+            "name": f.name,
+            "description": f.description,
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    n: {"type": t, "description": d} for (n, t, d) in f.params
+                },
+                "required": [n for (n, _, _) in f.params],
+            },
         },
     }
 
 
 class OAILLM(LLM):
-    ENDPOINT = "https://api.openai.com/v1/chat/completions"
+    ENDPOINT = ""
 
     def __init__(self, config: Config) -> None:
         super().__init__(config)
-        self.api_key = self.config["api_key"]
-        self.model = self.config["model"]
+        self.api_key = self.config["provider"]["api_key"]
+        self.model_name = self.config["provider"]["model"]
 
         self.HEADERS = {
             "Authorization": f"Bearer {self.api_key}",
@@ -81,21 +87,27 @@ class OAILLM(LLM):
     def send(
         self, messages: T.List[MSG_t], functions: T.List[FunctionType]
     ) -> T.List[MSG_t]:
-        payload = {"model": self.model, "messages": [convert_msg(m) for m in messages]}
+        payload = {
+            "model": self.model_name,
+            # "reasoning_effort": "high",
+            "messages": [convert_msg(m) for m in messages],
+        }
 
         if functions:
-            payload["functions"] = [convert_function(f) for f in functions]
-            payload["function_call"] = "auto"
+            payload["tools"] = [convert_function(f) for f in functions]
+            payload["tool_choice"] = "auto"
 
         resp = requests.post(self.ENDPOINT, headers=self.HEADERS, json=payload)
         if resp.status_code != 200:
-            print(resp.text)
-            return []
+            return [ErorrMsg(f"Response status code: {resp.status_code} != 200", resp.text)]
         j = resp.json()
 
+        finish_reason = j["choices"][0]["finish_reason"]
         choice = j["choices"][0]["message"]
-        fcall = choice.get("function_call")
-        if fcall:
+        if finish_reason == "tool_calls":
+            fcall = choice.get("tool_calls")[0]["function"]
             return [FunctionCallMsg(fcall["name"], json.loads(fcall["arguments"]))]
+        elif "content" not in choice:
+            return []
         else:
             return [TextMsg("llm", choice["content"])]

@@ -16,5 +16,6 @@ wheels/
 .notes
 
 # Bond
-.bond_history
-.bond_conf.toml
+.bond*
+
+.vscode

@@ -1,16 +1,16 @@
 [project]
 name = "bond"
-version = "2025.3"
+version = "2025.4"
 description = "Something something llms something..."
 readme = "README.md"
 requires-python = ">=3.8"
 dependencies = [
     "html2text>=2024.2.26",
-    "prompt-toolkit>=3.0.51",
-    "pycurl>=7.45.6",
+    "prompt-toolkit==3.0.52",
     "requests>=2.32.4",
+    "rich>=14.2.0",
     "toml>=0.10.2",
 ]
 
 [project.scripts]
-bond = "bond:run"
+bond = "bond.ui.cli.simple:run"

@@ -21,7 +21,7 @@ class Config:
         return
 
     @staticmethod
-    def from_file(path: str):
+    def load(path: str):
         config_path = pathlib.Path(path).expanduser().resolve()
         if not config_path.exists():
             raise FileNotFoundError(f"Config file not found: {config_path}")
@@ -30,6 +30,16 @@ class Config:
 
         config_data = toml.load(config_path)
         return Config(config_data)
+    
+    def save(self, path: str):
+        config_path = pathlib.Path(path).expanduser().resolve()
+        if not config_path.exists():
+            raise FileNotFoundError(f"Config file not found: {config_path}")
+        if not config_path.is_file():
+            raise ValueError(f"Config path is not a file: {config_path}")
+
+        with open(config_path, "w") as f:
+            toml.dump(self._config, f)
 
     def merge(self, conf: "Config"):
         self._config.update(conf._config)

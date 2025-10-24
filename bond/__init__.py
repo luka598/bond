@@ -1,3 +1,3 @@
-from bond.agent.run import run
+from rich.traceback import install
 
-__all__ = ["run"]
+install(show_locals=True)

@@ -34,7 +34,13 @@ class FunctionResultMsg:
         self.data = data
 
 
-MSG_t = T.Union[TextMsg, ImageMsg, FunctionCallMsg, FunctionResultMsg]
+class ErorrMsg:
+    def __init__(self, data: str, ext: T.Any = None) -> None:
+        self.data = data
+        self.ext = ext
+
+
+MSG_t = T.Union[TextMsg, ImageMsg, FunctionCallMsg, FunctionResultMsg, ErorrMsg]
 
 
 class FunctionType:
