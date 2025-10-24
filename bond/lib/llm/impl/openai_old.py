@@ -55,6 +55,23 @@ def convert_msg(msg: MSG_t):
 
 
 def convert_function(f: FunctionType):
+    properties = {}
+    required = []
+    for p in f.params:
+        required.append(p.name)
+        if isinstance(p, f.ParamLiteral):
+            properties[p.name] = {
+                "type": p.type,
+                "description": p.description,
+            }
+        elif isinstance(p, f.ParamArray):
+            properties[p.name] = {
+                "type": "array",
+                "items": {"type": p.type},
+                "description": p.description,
+            }
+
+
     return {
         "type": "function",
         "function": {
@@ -62,10 +79,8 @@ def convert_function(f: FunctionType):
             "description": f.description,
             "parameters": {
                 "type": "object",
-                "properties": {
-                    n: {"type": t, "description": d} for (n, t, d) in f.params
-                },
-                "required": [n for (n, _, _) in f.params],
+                "properties": properties,
+                "required": required,
             },
         },
     }
