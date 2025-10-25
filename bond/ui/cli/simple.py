@@ -25,8 +25,17 @@ class Simple:
     def __init__(self, conf: Config) -> None:
         self.conf = conf
 
+        if self.conf["provider"]["name"] == "gemini":
+            from bond.lib.llm.impl.gemini_oai import GeminiLLM
+
+            self.agent = Agent(conf, GeminiLLM(conf), self.handle_msg)
+        elif self.conf["provider"]["name"] == "openai":
+            from bond.lib.llm.impl.openai import OpenAILLM
+
+            self.agent = Agent(conf, OpenAILLM(conf), self.handle_msg)
+
         kb = KeyBindings()
-        kb.add("c-c")(lambda event: None)  # TODO: STOP EXECUTION
+        kb.add("c-c")(lambda event: self.agent.cancel.set())
         kb.add("c-d")(lambda event: event.app.exit(exception=KeyboardInterrupt))
         kb.add("escape", "enter")(lambda event: event.current_buffer.insert_text("\n"))
 
@@ -37,14 +46,6 @@ class Simple:
             key_bindings=kb,
         )
 
-        if self.conf["provider"]["name"] == "gemini":
-            from bond.lib.llm.impl.gemini_oai import GeminiLLM
-
-            self.agent = Agent(conf, GeminiLLM(conf), self.handle_msg)
-        elif self.conf["provider"]["name"] == "openai":
-            from bond.lib.llm.impl.openai import OpenAILLM
-
-            self.agent = Agent(conf, OpenAILLM(conf), self.handle_msg)
 
     def handle_msg(self, msg: MSG_t):
         if isinstance(msg, TextMsg):
