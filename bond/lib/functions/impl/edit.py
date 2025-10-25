@@ -6,6 +6,7 @@ def _edit_text(path: pathlib.Path, begin_line: int, end_line: int, text: str):
     with open(path, "r") as f:
         lines = f.readlines()
 
+    lines = [x.strip() for x in lines]
     num_lines = len(lines)
 
     if not (0 <= begin_line <= num_lines):

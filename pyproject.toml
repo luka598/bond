@@ -1,6 +1,6 @@
 [project]
 name = "bond"
-version = "2025.5"
+version = "2025.6"
 description = "Something something llms something..."
 readme = "README.md"
 requires-python = ">=3.8"
