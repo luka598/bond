@@ -1,0 +1,200 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="UTF-8">
+    <title>Bus</title>
+    <style>
+        body { 
+            font-family: monospace; 
+            margin: 0 auto; 
+            padding-bottom: 50px;
+            max-width: 60%;
+        }
+
+        .entry { 
+            display: flex; 
+            padding: 5px 0;
+        }
+
+        .meta { 
+            width: 220px; 
+            min-width: 220px; 
+            text-align: right; 
+            padding: 5px 10px 5px 0;
+            font-size: 0.85em;
+            display: flex;
+            flex-direction: column;
+            border-radius: 4px;
+            margin-right: 5px;
+            color: #666;
+            background-color: #fafafa;
+        }
+        .meta span { display: block; }
+
+        .toggle {
+            width: 25px;
+            min-width: 25px;
+            text-align: center;
+            cursor: pointer;
+            font-weight: bold;
+            color: #999;
+            user-select: none;
+            padding-top: 5px;
+        }
+        .toggle:hover { color: #333; background: #eee; }
+
+        .content { 
+            flex: 1; 
+            padding: 5px 10px;
+            white-space: pre-wrap; 
+            word-break: break-word; 
+            color: #000;
+        }
+
+        .entry.collapsed .content {
+            height: 1.2em;
+            overflow: hidden;
+            white-space: nowrap;
+            text-overflow: ellipsis;
+            color: #aaa;
+        }
+
+        #footer {
+            position: fixed;
+            bottom: 0;
+            left: 25%;
+            width: 50%;
+            height: 40px;
+            display: flex;
+            align-items: center;
+            padding: 0 10px;
+            box-sizing: border-box;
+            background-color: white;
+        }
+        input { flex: 1; padding: 5px; font-family: monospace; }
+        button { margin-left: 10px; cursor: pointer; font-family: monospace; }
+
+        .c-user { background-color: #e3f2fd; color: #0d47a1; }
+        .c-agent { background-color: #e8f5e9; color: #1b5e20; }
+        .c-func { background-color: #fff3e0; color: #e65100; }
+        .c-error { background-color: #ffebee; color: #b71c1c; }
+    </style>
+</head>
+<body>
+
+<div id="log"></div>
+
+<div id="footer">
+    <span id="status-ind" style="margin-right:10px; font-size:10px;">●</span>
+    <input type="text" id="input" placeholder="Type message..." autofocus onkeypress="handleEnter(event)">
+    <button onclick="send()">Send</button>
+</div>
+
+<script>
+    const WS_URL = "/ws";
+    let socket = null;
+
+    function connect() {
+        socket = new WebSocket(WS_URL);
+        socket.onopen = () => {
+            document.getElementById('status-ind').style.color = 'green';
+            logRow('system', 'connected', 'WebSocket connected', null);
+        };
+        socket.onclose = () => {
+            document.getElementById('status-ind').style.color = 'red';
+            logRow('system', 'disconnected', 'Disconnected. Retrying...', 'c-error');
+            setTimeout(connect, 3000);
+        };
+        socket.onmessage = (e) => {
+            try { render(JSON.parse(e.data)); } catch (err) { console.error(err); }
+        };
+    }
+
+    function send() {
+        const inp = document.getElementById('input');
+        const txt = inp.value.trim();
+        if (!txt || !socket) return;
+
+        socket.send(JSON.stringify({
+            type: "send_message",
+            channel: "main",
+            text: txt
+        }));
+
+        // logRow('user', 'user_message', txt, 'c-user');
+        inp.value = "";
+    }
+
+    function handleEnter(e) { if (e.key === 'Enter') send(); }
+
+    function render(msg) {
+        if (!msg || !msg.type) return;
+
+        if (msg.type === 'message') {
+            const { channel, message } = msg;
+            const { id, author, msg_type, content } = message;
+
+            if (msg_type === 'function_call') {
+                logRow(channel, 'function_call', content, 'c-func', true);
+            } else if (msg_type === 'function_result') {
+                logRow(channel, 'function_result', content, 'c-func', true);
+            } else if (msg_type === 'error') {
+                logRow(channel, 'error', content, 'c-error');
+            } else if (author === 'user') {
+                logRow(channel, 'user_message', content, 'c-user');
+            } else if (author === 'llm') {
+                logRow(channel, 'agent_message', content, 'c-agent');
+            } else if (author === 'system') {
+                logRow(channel, 'system', content, null);
+            } else {
+                logRow(channel, author, content, null);
+            }
+            return;
+        }
+
+        // if (msg.type === 'send_text_message') {
+        //     logRow(msg.channel, 'send_text_message', msg.text, 'c-agent');
+        //     return;
+        // }
+
+        if (msg.type === 'send_cancel') {
+            logRow(msg.channel, 'cancelled', '— cancelled —', 'c-error');
+            return;
+        }
+    }
+
+    function logRow(node, type, text, colorClass, startCollapsed) {
+        const container = document.getElementById('log');
+        const div = document.createElement('div');
+        div.className = 'entry';
+        if (startCollapsed) div.classList.add('collapsed');
+
+        const time = new Date().toLocaleTimeString('en-GB', { hour12: false });
+
+        const meta = document.createElement('div');
+        meta.className = `meta ${colorClass || ''}`;
+        meta.innerHTML = `<span>${time}</span><span>${type}</span><span>${node}</span>`;
+
+        const toggle = document.createElement('div');
+        toggle.className = 'toggle';
+        toggle.innerText = startCollapsed ? '+' : '-';
+        toggle.onclick = () => {
+            const isCollapsed = div.classList.toggle('collapsed');
+            toggle.innerText = isCollapsed ? '+' : '-';
+        };
+
+        const content = document.createElement('div');
+        content.className = 'content';
+        content.innerText = text;
+
+        div.append(meta, toggle, content);
+        container.appendChild(div);
+
+        window.scrollTo(0, document.body.scrollHeight);
+    }
+
+    connect();
+</script>
+
+</body>
+</html>

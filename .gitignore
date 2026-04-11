@@ -1,21 +1,7 @@
-# Python-generated files
-__pycache__/
-*.py[oc]
-build/
-dist/
-wheels/
-*.egg-info
+ignore_*
+SOUL.md
 
-# Virtual environments
-.venv
-
-# Env
-.env
-
-# Dev
-.notes
-
-# Bond
-.bond*
+**/**target
 
 .vscode
+.bond
