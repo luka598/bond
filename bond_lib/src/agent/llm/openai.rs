@@ -2,10 +2,9 @@ use serde_json::json;
 
 use crate::{
     agent::{
-        function::{self, Functions},
+        function::Functions,
         message::{Message, MessageAuthor, MessageExtra, MessageValue},
     },
-    taglang,
 };
 
 #[derive(Clone)]

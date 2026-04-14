@@ -11,6 +11,10 @@
             max-width: 60%;
         }
 
+        p, pre, ol, ul, li {
+            margin: 0;
+        }
+
         .entry { 
             display: flex; 
             padding: 5px 0;
@@ -79,6 +83,7 @@
         .c-func { background-color: #fff3e0; color: #e65100; }
         .c-error { background-color: #ffebee; color: #b71c1c; }
     </style>
+    <script src="https://cdn.jsdelivr.net/npm/marked/lib/marked.umd.js"></script>
 </head>
 <body>
 
@@ -143,6 +148,7 @@
             } else if (author === 'user') {
                 logRow(channel, 'user_message', content, 'c-user');
             } else if (author === 'llm') {
+                if (content == "") return;
                 logRow(channel, 'agent_message', content, 'c-agent');
             } else if (author === 'system') {
                 logRow(channel, 'system', content, null);
@@ -185,7 +191,7 @@
 
         const content = document.createElement('div');
         content.className = 'content';
-        content.innerText = text;
+        content.innerHTML = marked.parse(text);
 
         div.append(meta, toggle, content);
         container.appendChild(div);

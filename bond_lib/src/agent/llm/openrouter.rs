@@ -6,9 +6,9 @@ use crate::agent::{
 };
 
 const TOOL_CALL_ID_KEY: &str = "tool_call_id";
+const TOOL_CALLS_KEY: &str = "tool_calls";
 const CACHE_LOOKBACK: usize = 20;
 const MAX_CACHE_BREAKPOINTS: usize = 4;
-
 
 fn insert_cache_marker(msg: &mut serde_json::Value) {
     let cache_control = serde_json::json!({ "type": "ephemeral" });
@@ -40,30 +40,53 @@ fn translate_message(msg: &Message) -> Option<serde_json::Value> {
             "role": "user",
             "content": msg.value.as_str()
         })),
-        MessageAuthor::LLM => Some(serde_json::json!({
-            "role": "assistant",
-            "content": msg.value.as_str()
-        })),
-        MessageAuthor::Function => {
-            let id = match &msg.extra {
-                MessageExtra::Map(m) => m.get(TOOL_CALL_ID_KEY).map(|s| s.as_str()),
+        MessageAuthor::LLM => {
+            let tool_calls_json = match &msg.extra {
+                MessageExtra::Map(m) => m.get(TOOL_CALLS_KEY).cloned(),
                 MessageExtra::None => None,
             };
-            match id {
-                Some(id) => Some(serde_json::json!({
-                    "role": "tool",
-                    "tool_call_id": id,
+            match tool_calls_json {
+                Some(tc_str) => {
+                    let tool_calls: serde_json::Value =
+                        serde_json::from_str(&tc_str).unwrap_or(serde_json::json!([]));
+                    let content = msg.value.as_str();
+                    Some(serde_json::json!({
+                        "role": "assistant",
+                        "content": if content.is_empty() { serde_json::Value::Null } else { serde_json::Value::String(content) },
+                        "tool_calls": tool_calls
+                    }))
+                }
+                None => Some(serde_json::json!({
+                    "role": "assistant",
                     "content": msg.value.as_str()
                 })),
-                None => {
-                    println!(
-                        "Warning: dropping Function message — no '{}' in extra",
-                        TOOL_CALL_ID_KEY
-                    );
-                    None
-                }
             }
         }
+        MessageAuthor::Function => match &msg.value {
+            MessageValue::FunctionCall(_) => None,
+            MessageValue::FunctionResult(_) => {
+                let id = match &msg.extra {
+                    MessageExtra::Map(m) => m.get(TOOL_CALL_ID_KEY).map(|s| s.as_str()),
+                    MessageExtra::None => None,
+                };
+                match id {
+                    Some(id) => Some(serde_json::json!({
+                        "role": "tool",
+                        "tool_call_id": id,
+                        "content": msg.value.as_str()
+                    })),
+                    None => {
+                        println!(
+                            "Warning: dropping FunctionResult — no '{}' in extra",
+                            TOOL_CALL_ID_KEY
+                        );
+                        None
+                    }
+                }
+            }
+
+            _ => None,
+        },
     }
 }
 
@@ -93,11 +116,8 @@ impl OpenRouterLLM {
         println!("sending {} messages to openrouter", messages.len());
         let last_message_time = messages.last().unwrap().id;
 
-
-        let mut payload_messages: Vec<serde_json::Value> = messages
-            .iter()
-            .filter_map(translate_message)
-            .collect();
+        let mut payload_messages: Vec<serde_json::Value> =
+            messages.iter().filter_map(translate_message).collect();
 
         let n = payload_messages.len();
         for i in 0..MAX_CACHE_BREAKPOINTS {
@@ -125,7 +145,7 @@ impl OpenRouterLLM {
                         "properties": {
                             "x": {
                                 "type": "string",
-                                "description": "taglang-encoded function call string."
+                                "description": "cmdlang-encoded function call string."
                             }
                         },
                         "required": ["x"]
@@ -135,7 +155,7 @@ impl OpenRouterLLM {
             "tool_choice": "auto"
         });
 
-        println!("{}", payload);
+        // println!("{}", payload);
 
         let client = reqwest::Client::new();
         let resp = client
@@ -149,7 +169,7 @@ impl OpenRouterLLM {
             .expect("Network request failed");
 
         let resp_data = resp.text().await.expect("Failed to read response body");
-        println!("==========> {:?}", resp_data);
+        // println!("==========> {:?}", resp_data);
 
         let parsed: serde_json::Value = match serde_json::from_str(&resp_data) {
             Ok(json) => json,
@@ -184,21 +204,33 @@ impl OpenRouterLLM {
             }
         };
 
+        let text_content = msg
+            .get("content")
+            .and_then(|c| c.as_str())
+            .unwrap_or("")
+            .to_string();
 
-        if let Some(text) = msg.get("content").and_then(|c| c.as_str()) {
-            if !text.is_empty() {
-                result.push(Message {
-                    id: last_message_time,
-                    time: last_message_time,
-                    author: MessageAuthor::LLM,
-                    value: MessageValue::Text(text.to_string()),
-                    extra: MessageExtra::None,
-                });
-            }
-        }
+        let tool_calls = msg
+            .get("tool_calls")
+            .and_then(|tc| tc.as_array())
+            .cloned()
+            .unwrap_or_default();
 
-        if let Some(tool_calls) = msg.get("tool_calls").and_then(|tc| tc.as_array()) {
-            for tc in tool_calls {
+        if !tool_calls.is_empty() {
+            let mut extra_map = HashMap::new();
+            extra_map.insert(
+                TOOL_CALLS_KEY.to_string(),
+                serde_json::to_string(&tool_calls).unwrap_or_default(),
+            );
+            result.push(Message {
+                id: last_message_time,
+                time: last_message_time,
+                author: MessageAuthor::LLM,
+                value: MessageValue::Text(text_content),
+                extra: MessageExtra::Map(extra_map),
+            });
+
+            for tc in &tool_calls {
                 let tool_call_id = tc
                     .get("id")
                     .and_then(|i| i.as_str())
@@ -242,7 +274,7 @@ impl OpenRouterLLM {
                 result.push(Message {
                     id: last_message_time,
                     time: last_message_time,
-                    author: MessageAuthor::System,
+                    author: MessageAuthor::Function,
                     value: match fcall {
                         Ok(f) => MessageValue::FunctionCall(f),
                         Err(e) => MessageValue::Error(e),
@@ -250,14 +282,30 @@ impl OpenRouterLLM {
                     extra: MessageExtra::Map(extra_map),
                 });
             }
+        } else if !text_content.is_empty() {
+            result.push(Message {
+                id: last_message_time,
+                time: last_message_time,
+                author: MessageAuthor::LLM,
+                value: MessageValue::Text(text_content),
+                extra: MessageExtra::None,
+            });
         }
 
         if let Some(usage) = parsed.get("usage") {
-            let prompt     = usage.get("prompt_tokens").and_then(|v| v.as_u64()).unwrap_or(0);
-            let cached     = usage.get("prompt_tokens_details")
-                                  .and_then(|d| d.get("cached_tokens"))
-                                  .and_then(|v| v.as_u64()).unwrap_or(0);
-            let completion = usage.get("completion_tokens").and_then(|v| v.as_u64()).unwrap_or(0);
+            let prompt = usage
+                .get("prompt_tokens")
+                .and_then(|v| v.as_u64())
+                .unwrap_or(0);
+            let cached = usage
+                .get("prompt_tokens_details")
+                .and_then(|d| d.get("cached_tokens"))
+                .and_then(|v| v.as_u64())
+                .unwrap_or(0);
+            let completion = usage
+                .get("completion_tokens")
+                .and_then(|v| v.as_u64())
+                .unwrap_or(0);
             println!(
                 "tokens — prompt: {} (cached: {}), completion: {}",
                 prompt, cached, completion

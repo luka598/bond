@@ -1,11 +1,12 @@
-use std::{collections::HashMap, pin::Pin};
+use std::{collections::HashMap, sync::Arc};
 
-use crate::taglang;
+use crate::agent::langs::{cmdlang};
+
 
 #[derive(Debug, Clone)]
 pub struct FunctionCall {
     pub name: String,
-    pub args: taglang::Tag,
+    pub args: Vec<String>,
 }
 
 #[derive(Debug, Clone)]
@@ -14,28 +15,11 @@ pub struct FunctionResult {
     pub result: String,
 }
 
-//
-// dynamic dispatch
-//
+type Function = Arc<dyn Fn(&String, &[String]) -> String + Send + Sync>;
 
-pub type BoxFuture = Pin<Box<dyn Future<Output = String> + Send>>;
-
-pub trait Function: Send + Sync + 'static {
-    fn call(&self, x: taglang::Tag) -> BoxFuture;
-}
-
-impl<F, Fut> Function for F
-where
-    F: Fn(taglang::Tag) -> Fut + Send + Sync + 'static,
-    Fut: Future<Output = String> + Send + 'static,
-{
-    fn call(&self, x: taglang::Tag) -> BoxFuture {
-        Box::pin(self(x))
-    }
-}
-
+#[derive(Clone)]
 pub struct Functions {
-    functions: HashMap<String, Box<dyn Function>>,
+    functions: HashMap<String, Function>,
 }
 
 impl Functions {
@@ -46,34 +30,23 @@ impl Functions {
     }
 
     pub fn parse(&self, call: &str) -> Result<FunctionCall, String> {
-        let root_tag = taglang::parse(call)?;
-        let function_name = root_tag
-            .get("function")
-            .ok_or("no tag function")?
-            .get("name")
-            .ok_or("no tag function->name")?
-            .as_str()
-            .to_string();
-        let args = root_tag
-            .get("function")
-            .unwrap()
-            .get("args")
-            .ok_or("no tag function->args")?
-            .clone();
+        let cmd = cmdlang::Cmd::parse(call)?;
 
         Ok(FunctionCall {
-            name: function_name,
-            args: args,
+            name: cmd.fname,
+            args: cmd.args,
         })
     }
 
-    pub fn register(&mut self, name: impl Into<String>, f: impl Function) {
-        self.functions.insert(name.into(), Box::new(f));
+    pub fn register(&mut self, name: impl Into<String>, f: Function) {
+        self.functions.insert(name.into(), f);
     }
 
     pub async fn exec(&self, fc: FunctionCall) -> FunctionResult {
         if let Some(h) = self.functions.get(&fc.name) {
-            let res = h.call(fc.args).await;
+
+            let res = (h)(&fc.name, &fc.args);
+
             return FunctionResult {
                 name: fc.name,
                 result: res,

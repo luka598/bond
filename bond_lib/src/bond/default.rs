@@ -1,32 +1,12 @@
-// use crate::agent::{agent::Agent, function::Functions};
-
-// use crate::bond::functions;
-
-// pub async fn default() -> (Agent,) {
-// let mut f = Functions::new();
-//     let mut m = functions::manual::Manual::new();
-
-//     functions::shell::register(&mut f, &mut m);
-//     functions::text::register(&mut f, &mut m);
-//     functions::tmux::register(&mut f, &mut m);
-//     functions::web::register(&mut f, &mut m);
-//     functions::knowledge_base::register(&mut f, &mut m);
-//     f.register("manual", m);
-
-//     let agent = Agent::new(f).await;
-
-//     return (agent,)
-// }
-
 use crate::{
     agent::{
         agent::{Agent, AgentAction},
         function::Functions,
-        llm::{openai::OAILLM, openrouter::OpenRouterLLM},
+        llm::openrouter::OpenRouterLLM,
     },
     bond::shell::Shell,
 };
-use std::{env, fs, path::PathBuf};
+use std::{env, fs, path::PathBuf, sync::Arc};
 
 pub fn resolve_home() -> String {
     let path: PathBuf = {
@@ -57,6 +37,25 @@ pub fn resolve_home() -> String {
     };
 
     path.to_string_lossy().into_owned()
+}
+
+pub fn gen_meta_prompt(shell: &Shell) -> String {
+    let prompts: String = shell
+        .load_prompts()
+        .iter()
+        .map(|x| format!("{}: {}", x.name(), x.source()))
+        .fold(String::new(), |a, b| format!("{}\n{}", a, b));
+
+    let functions: String = shell
+        .load_functions()
+        .iter()
+        .map(|x| format!("{}: {} | {}", x.name(), x.source(), x.info(shell)))
+        .fold(String::new(), |a, b| format!("{}\n{}", a, b));
+
+    format!(
+        "Bond paths:\n\nPrompts loaded:\n{}\nNamespaces (functions):\n{}",
+        prompts, functions
+    )
 }
 
 pub async fn default(home_path: Option<&str>) -> (Agent,) {
@@ -93,14 +92,22 @@ pub async fn default(home_path: Option<&str>) -> (Agent,) {
         .filter(|x| x != "")
         .collect();
 
-    let f = Functions::new();
+    let mut f = Functions::new();
+    for function in shell.load_functions() {
+        let shell_ref = shell.clone();
+        let name = function.name();
+        f.register(
+            name,
+            Arc::new(move |_name: &String, args: &[String]| function.call(&shell_ref, args)),
+        );
+    }
+
     let llm = OpenRouterLLM::new(&model, &provider.api_key, &providers).await;
     let agent = Agent::new(llm, f).await;
 
     let agent_ctl = agent.new_ctl();
 
     for prompt in shell.load_prompts() {
-        // println!("{:?} {:?}", prompt.name(), prompt.read());
         agent_ctl
             .tx
             .send(AgentAction::SendSystemPrompt {
@@ -110,6 +117,15 @@ pub async fn default(home_path: Option<&str>) -> (Agent,) {
             })
             .unwrap();
     }
+
+    agent_ctl
+        .tx
+        .send(AgentAction::SendSystemPrompt {
+            channel: "template_main".to_string(),
+            name: "meta".to_string(),
+            text: gen_meta_prompt(&shell),
+        })
+        .unwrap();
 
     agent_ctl
         .tx

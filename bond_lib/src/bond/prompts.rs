@@ -1,65 +1,28 @@
-pub const DEFAULT_TAGLANG: &'static str = r#"
-# taglang
-
-Tags: `<n>content</n>`. Parsed into `{ name, suffix, value, children }`.
-The whole document is wrapped in a synthetic `<root>` tag.
-
-## Suffix
-
-Tags may carry a suffix: `<a 1234>content</a 1234>`. A closing tag only closes
-its opener when **name and suffix both match**. Plain `<a>` and `<a 1234>` are independent.
-
-## Closing rules
-
-Inside `<x>`, any `</y>` where `y ≠ x` (or suffix differs) is **appended as literal text**, not an error.
-Only a matching `</x>` closes the tag.
-
-Errors:
-- Open tag reaches EOF → `Unmatched <x> tag`
-- Close tag at root level (nothing open) → `Unmatched </x> tag`
-
-## `<raw SUFFIX>`
-
-Reserved tag. Everything until `</raw SUFFIX>` is captured verbatim as `value` — nothing inside is parsed.
-Suffix is **required** (pick one that won't appear in the content).
-
-```
-<raw END>
-    <anything> here is just text </x> so is this
-</raw END>
-```
-
-"#;
-
 pub const DEFAULT_FUNCTION_CALL: &'static str = r#"
-## Functions
-## Tools
-In your enviroment you will have model provider tools/functions and bond provided functions.
-gateway is a bond provided tool which is used for calling other functions defined in bond ecosystem.
-It has following signature gateway(x: string) => string.
-`x` MUST be a taglang object encoded as a string and MUST follow schema `<function><name>FUNCTION_NAME</name><args><ARG_NAME>ARG_VALUE</ARG_NAME></args></function>`.
-When calling all other bond functions it must be called through gateway.
-Example function call with name `shell::run` in namespace `shell` with arguments `cmd` which has value `ls`: bond_exec(x="<function><name>shell::run</name><args><cmd>ls</cmd></args></function>")
+## Functions & Tools
+In your environment you will have model provider tools/functions and bond provided functions.
+`gateway` is a bond provided tool used for calling functions in the bond ecosystem.
+It is called via the native tool interface: gateway(x="...")
+The value of `x` MUST be a valid CmdLang command string with the following structure:
+  NAMESPACE "METHOD" "ARG_1" "ARG_2" ... "ARG_N"
+Where NAMESPACE is the function group and METHOD is the operation to call.
+Arguments are POSITIONAL: pass values in the order listed, no named arguments.
+
+Example: calling method `RUN` on namespace `SHELL` with argument `ls`:
+  gateway(x="SHELL \"MANUAL\"")
+  gateway(x="SHELL \"RUN\" \"ls\"")
+If args contain quotes, use QUOTE= inside the x value:
+  gateway(x="QUOTE=| SHELL |RUN| |ls -la /some/path||")
+
 RUN ONLY ONE FUNCTION PER MESSAGE. DO NOT RUN PARALLEL FUNCTIONS.
-
-Bond functions are defined in this format: `- NAME(ARG_1: TYPE, ARG_2: TYPE, ..., ARG_N: TYPE)|COMMENT`, where NAME, ARG_N and TYPE can be arbitrary strings and COMMENT explains the function usage.
-Bond namespaces are defined in this format: `- NAMESPACE => COMMENT`, where NAMESPACE is namespace and COMMENT is describing what is the general content of the namespace.
-
-1. When you first encounter a namespace that you havent seen/used before you must read the manual by calling manual.
-2. Before running a function inside bond ecosystem you MUST read function manual.
-3. Functions that are defined directly under bond functions are excempt from this two rules.
-
-## Bond functions
-- manual(namespace: string)|Must be called on `main` node
-## Bond namespaces
-- text |Functions related to file operations (read/write/create/delete/...) on textual files
-- shell|Functions related to running shell commands
-- tmux |Functions related to tmux. Do not use this for simple shell commands. Ask user if they prefer to run commands in tmux or shell.
-- web  |Search web and fetch web pages 
-- knowledge_base |Search kb
-
-
+ALL FUNCTIONS IMPLEMENT `MANUAL`.
+YOU MUST CALL `MANUAL` FOR A NAMESPACE BEFORE MAKING ANY OTHER CALLS TO THAT NAMESPACE IN THIS CONVERSATION. DO THIS ONCE PER NAMESPACE, AT THE VERY START.
+YOU MUST CALL `MANUAL` FOR A NAMESPACE BEFORE MAKING ANY OTHER CALLS TO THAT NAMESPACE IN THIS CONVERSATION. DO THIS ONCE PER NAMESPACE, AT THE VERY START.
+YOU MUST CALL `MANUAL` FOR A NAMESPACE BEFORE MAKING ANY OTHER CALLS TO THAT NAMESPACE IN THIS CONVERSATION. DO THIS ONCE PER NAMESPACE, AT THE VERY START.
+YOU MUST CALL `MANUAL` FOR A NAMESPACE BEFORE MAKING ANY OTHER CALLS TO THAT NAMESPACE IN THIS CONVERSATION. DO THIS ONCE PER NAMESPACE, AT THE VERY START.
+YOU MUST CALL `MANUAL` FOR A NAMESPACE BEFORE MAKING ANY OTHER CALLS TO THAT NAMESPACE IN THIS CONVERSATION. DO THIS ONCE PER NAMESPACE, AT THE VERY START.
 "#;
+
 
 pub static DEFAULT_SYSTEM: &'static str = r#"
 # SYSTEM PROMPT
@@ -95,4 +58,93 @@ You're direct and honest - not performatively blunt, not artificially warm.
 - Don't lecture or moralize repeatedly
 - Don't refuse things just because they seem suboptimal - flag it, move on
 - Don't perform a personality (sarcasm, enthusiasm) - just be useful
+"#;
+
+pub static CUSTOM_FUNCTIONS: &'static str = r#"
+# Custom Functions
+Place your function file in a directory that's in bond path. The file must be executable (chmod +x).
+
+## File Naming
+- Filename must start with function_
+- Example: function_greet.py, function_math.py
+
+## Argument Convention
+Your script receives these positional arguments:
+
+sys.argv[0] = script path (ignored)
+sys.argv[1] = source path (or "builtin")
+sys.argv[2] = colon-separated search paths
+sys.argv[3] = function name (uppercased)
+sys.argv[4] = method name (uppercased)
+sys.argv[5:] = rest of the arguments
+
+
+## Handling Args
+
+```py
+import sys
+
+source = sys.argv[1]      # "builtin" or file path
+paths = sys.argv[2]       # colon-separated paths
+name = sys.argv[3]        # function name (uppercased)
+method = sys.argv[4].upper()  # method to dispatch on
+rest = sys.argv[5:]       # remaining args
+```
+
+## Dispatching
+```py
+if method == "MANUAL":
+    # Your docs go here
+elif method == "HELLO":
+    name = rest[0] if rest else "World"
+    print(f"Hello {name}")
+else:
+    print(f"Unknown method: {method}")
+```
+
+
+## Full Example
+
+```py
+#!/usr/bin/env python3
+"""Custom function example"""
+
+import sys
+
+INFO = "Greets people with a customizable name"
+MANUAL = """\
+Custom function that greets people.
+
+Methods:
+- INFO: Returns a one-line description
+- HELLO [name]: Greets the name. Defaults to "World" if not provided
+
+Examples:
+  FNAME "HELLO" "Alice"
+  FNAME "HELLO"
+"""
+
+def hello(name):
+    print(f"Hello {name}!")
+
+def main():
+    source = sys.argv[1]
+    paths = sys.argv[2]
+    name = sys.argv[3]
+    method = sys.argv[4].upper()
+    rest = sys.argv[5:]
+    
+    if method == "MANUAL":
+        print(MANUAL)
+    elif method == "INFO":
+        print(INFO)
+    elif method == "HELLO":
+        name = rest[0] if rest else "World"
+        hello(name)
+    else:
+        print(f"Unknown method: {method}", file=sys.stderr)
+
+if __name__ == "__main__":
+    main()
+```
 "#;

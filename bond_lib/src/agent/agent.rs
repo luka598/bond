@@ -3,7 +3,6 @@ use tokio::sync::{Mutex, broadcast};
 
 use crate::agent::channels::Channels;
 use crate::agent::function::Functions;
-use crate::agent::llm::openai::OAILLM;
 use crate::agent::llm::openrouter::OpenRouterLLM;
 use crate::agent::message::{Message, MessageAuthor, MessageExtra, MessageValue};
 
@@ -123,12 +122,8 @@ impl Agent {
                     self.handle_send_new_channel(channel, template).await;
                 }
                 AgentAction::Message { .. } => {}
-                AgentAction::Busy {
-                    channel,
-                    busy,
-                    cancel,
-                } => {}
-                AgentAction::Error { channel, msg } => {}
+                AgentAction::Busy { .. } => {}
+                AgentAction::Error { .. } => {}
             }
         }
     }
@@ -174,43 +169,49 @@ impl Agent {
         let channel = self.channels.lock().await.get_channel(&channel_name);
         let llm = self.llm.clone();
         let tx = self.tx.clone();
-        let functions = Functions::new();
+        let functions = self.functions.clone();
         tokio::spawn(async move {
             if !channel.try_set_busy() {
                 return;
             }
 
-            let mut last_messages_len: usize = 0;
-            let mut added_messages: usize = 0;
-
             loop {
-                if channel.get_messages_len() == (last_messages_len + added_messages) {
-                    break;
-                }
-                last_messages_len = channel.get_messages_len();
-
                 let responses = llm.send(&channel.get_messages(), &functions).await;
+
+                let mut had_tool_call = false;
 
                 for msg in responses.iter() {
                     channel.add_message(msg.clone());
 
-                    let _ = tx.send(AgentAction::Message {
+                    tx.send(AgentAction::Message {
                         channel: channel_name.clone(),
                         msg: msg.clone(),
-                    });
-
-                    added_messages += 1;
+                    })
+                    .unwrap();
 
                     if let MessageValue::FunctionCall(fc) = &msg.value {
+                        had_tool_call = true;
+
                         let fr = functions.exec(fc.clone()).await;
-                        channel.add_message(Message {
+                        let result_msg = Message {
                             id: msg.id,
                             time: time(),
-                            author: MessageAuthor::System,
+                            author: MessageAuthor::Function,
                             value: MessageValue::FunctionResult(fr),
-                            extra: MessageExtra::None,
-                        });
+                            extra: msg.extra.clone(),
+                        };
+                        channel.add_message(result_msg.clone());
+
+                        tx.send(AgentAction::Message {
+                            channel: channel_name.clone(),
+                            msg: result_msg,
+                        })
+                        .unwrap();
                     }
+                }
+
+                if !had_tool_call {
+                    break;
                 }
             }
 
