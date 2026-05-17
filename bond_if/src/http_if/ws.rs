@@ -90,7 +90,7 @@ pub async fn run(ctl: AgentCtl) {
         .route("/ws", get(ws_handler))
         .with_state(shared_ctl);
 
-    let addr = "127.0.0.1:6969";
+    let addr = "127.0.0.1:6967";
     let listener = tokio::net::TcpListener::bind(addr)
         .await
         .expect("Failed to bind");

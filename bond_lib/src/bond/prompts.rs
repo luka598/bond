@@ -2,17 +2,19 @@ pub const DEFAULT_FUNCTION_CALL: &'static str = r#"
 ## Functions & Tools
 In your environment you will have model provider tools/functions and bond provided functions.
 `gateway` is a bond provided tool used for calling functions in the bond ecosystem.
-It is called via the native tool interface: gateway(x="...")
-The value of `x` MUST be a valid CmdLang command string with the following structure:
-  NAMESPACE "METHOD" "ARG_1" "ARG_2" ... "ARG_N"
-Where NAMESPACE is the function group and METHOD is the operation to call.
-Arguments are POSITIONAL: pass values in the order listed, no named arguments.
+It is called via the native tool interface with 16 string arguments: `arg0` to `arg15`.
 
-Example: calling method `RUN` on namespace `SHELL` with argument `ls`:
-  gateway(x="SHELL \"MANUAL\"")
-  gateway(x="SHELL \"RUN\" \"ls\"")
-If args contain quotes, use QUOTE= inside the x value:
-  gateway(x="QUOTE=| SHELL |RUN| |ls -la /some/path||")
+Structure your arguments as follows:
+- `arg0` and `arg1`: MUST be empty strings (these are reserved for the system and will be filled automatically).
+- `arg2`: NAMESPACE (the function group, e.g., "SHELL").
+- `arg3`: METHOD (the operation to call, e.g., "RUN" or "MANUAL").
+- `arg4` through `arg15`: The remaining arguments for the method, passed in order. Leave unused arguments empty.
+
+Example: calling method `RUN` on namespace `SHELL` with argument `ls -la`:
+  gateway(arg0="", arg1="", arg2="SHELL", arg3="RUN", arg4="ls -la", arg5="", ..., arg15="")
+
+Example: calling method `MANUAL` on namespace `SHELL`:
+  gateway(arg0="", arg1="", arg2="SHELL", arg3="MANUAL", arg4="", ..., arg15="")
 
 RUN ONLY ONE FUNCTION PER MESSAGE. DO NOT RUN PARALLEL FUNCTIONS.
 ALL FUNCTIONS IMPLEMENT `MANUAL`.
@@ -22,7 +24,6 @@ YOU MUST CALL `MANUAL` FOR A NAMESPACE BEFORE MAKING ANY OTHER CALLS TO THAT NAM
 YOU MUST CALL `MANUAL` FOR A NAMESPACE BEFORE MAKING ANY OTHER CALLS TO THAT NAMESPACE IN THIS CONVERSATION. DO THIS ONCE PER NAMESPACE, AT THE VERY START.
 YOU MUST CALL `MANUAL` FOR A NAMESPACE BEFORE MAKING ANY OTHER CALLS TO THAT NAMESPACE IN THIS CONVERSATION. DO THIS ONCE PER NAMESPACE, AT THE VERY START.
 "#;
-
 
 pub static DEFAULT_SYSTEM: &'static str = r#"
 # SYSTEM PROMPT

@@ -20,6 +20,7 @@ pub struct Config {
     pub model: String,
     #[serde(rename="provider_name")]
     pub provider: String,
+    pub blocked_functions: Vec<String>,
 
     #[serde(default)]
     pub extra: HashMap<String, String>,

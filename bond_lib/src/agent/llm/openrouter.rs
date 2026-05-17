@@ -128,6 +128,17 @@ impl OpenRouterLLM {
             }
         }
 
+        let mut gateway_properties = serde_json::Map::new();
+        for i in 0..16 {
+            gateway_properties.insert(
+                format!("arg{}", i),
+                serde_json::json!({
+                    "type": "string",
+                    "description": "Text argument"
+                }),
+            );
+        }
+
         let payload = serde_json::json!({
             "model": &self.model,
             "messages": payload_messages,
@@ -142,13 +153,7 @@ impl OpenRouterLLM {
                     "description": "Gateway function to call other functions.",
                     "parameters": {
                         "type": "object",
-                        "properties": {
-                            "x": {
-                                "type": "string",
-                                "description": "cmdlang-encoded function call string."
-                            }
-                        },
-                        "required": ["x"]
+                        "properties": gateway_properties
                     }
                 }
             }],
@@ -157,7 +162,10 @@ impl OpenRouterLLM {
 
         // println!("{}", payload);
 
-        let client = reqwest::Client::new();
+        let client = reqwest::Client::builder()
+            .timeout(std::time::Duration::from_secs(60))
+            .build()
+            .unwrap();
         let resp = client
             .post(&self.api_base)
             .header("Authorization", format!("Bearer {}", self.api_key))
@@ -265,12 +273,19 @@ impl OpenRouterLLM {
 
                 let args: serde_json::Value =
                     serde_json::from_str(arguments_str).unwrap_or(serde_json::json!({}));
-                let x = args.get("x").and_then(|v| v.as_str()).unwrap_or("");
+                
+                let mut x: Vec<String> = Vec::new();
+                for i in 0..16 {
+                    if let Some(val) = args.get(format!("arg{}", i)).and_then(|v| v.as_str()) {
+                        x.push(val.to_string());
+                    }
+                }
 
                 let mut extra_map = HashMap::new();
                 extra_map.insert(TOOL_CALL_ID_KEY.to_string(), tool_call_id);
 
                 let fcall = functions.parse(x);
+
                 result.push(Message {
                     id: last_message_time,
                     time: last_message_time,

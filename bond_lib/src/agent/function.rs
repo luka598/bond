@@ -1,7 +1,5 @@
 use std::{collections::HashMap, sync::Arc};
 
-use crate::agent::langs::{cmdlang};
-
 
 #[derive(Debug, Clone)]
 pub struct FunctionCall {
@@ -29,14 +27,19 @@ impl Functions {
         }
     }
 
-    pub fn parse(&self, call: &str) -> Result<FunctionCall, String> {
-        let cmd = cmdlang::Cmd::parse(call)?;
+    pub fn parse(&self, args: Vec<String>) -> Result<FunctionCall, String> {
+        let mut args = args.clone();
+
+        if args.len() < 16 {
+            args.resize(16, String::new());
+        }
 
         Ok(FunctionCall {
-            name: cmd.fname,
-            args: cmd.args,
+            name: args[2].clone(), // TODO: Fix this bond-agent leakeage
+            args: args,
         })
     }
+
 
     pub fn register(&mut self, name: impl Into<String>, f: Function) {
         self.functions.insert(name.into(), f);

@@ -6,7 +6,6 @@ use std::{
 };
 
 use crate::{
-    agent::langs::cmdlang,
     bond::{config::Config, functions, prompts},
 };
 
@@ -14,15 +13,25 @@ use crate::{
 // FUNCTION
 // ===========================================
 
+/*
+Function API:
+16 ARGS
+- 0: Reserved | Source
+- 1: Reserved | ShellPath
+- 2: Name
+- 3: Method
+- 4..=16: Available
+*/
+
 pub trait Function: Send + Sync {
     fn name(&self) -> String;
     fn source(&self) -> &str;
-    // [Arg0: Source] | [Arg1: ShellPath] | [Arg2: Name] | Arg3/args[0]: Method | ArgN/args[...]: Rest
-    // args[0] = method (should be uppercased), args[1..] = rest
     fn call(&self, shell: &Shell, args: &[String]) -> String;
 
     fn info(&self, shell: &Shell) -> String {
-        self.call(shell, &["INFO".to_string()])
+        let mut args = vec![String::new(); 16];
+        args[3] = "INFO".to_string();
+        self.call(shell, &args)
     }
 }
 
@@ -41,19 +50,13 @@ impl Function for BuiltinFunction {
     }
 
     fn call(&self, shell: &Shell, args: &[String]) -> String {
-        let source = "builtin".to_string();
-        let paths = shell.get_path().join(":");
-        let name = self.name.to_uppercase();
+        assert_eq!(args.len(), 16, "BuiltinFunction::call requires exactly 16 arguments");
 
-        // args[0] is method, should be uppercased
-        let method = match args.first() {
-            Some(m) => m.to_uppercase(),
-            None => return "BuiltinFunction: missing method".to_string(),
-        };
-        let rest = &args[1..];
-
-        let mut args_ext = vec![source, paths, name, method];
-        args_ext.extend_from_slice(rest);
+        let mut args_ext = args.to_vec();
+        args_ext[0] = "builtin".to_string();
+        args_ext[1] = shell.get_path().join(":");
+        args_ext[2] = self.name.to_uppercase();
+        args_ext[3] = args_ext[3].to_uppercase();
 
         (self.f)(&args_ext)
     }
@@ -74,18 +77,13 @@ impl Function for FileFunction {
     }
 
     fn call(&self, shell: &Shell, args: &[String]) -> String {
-        let source = self.path.clone();
-        let paths = shell.get_path().join(":");
-        let name = self.name.clone();
+        assert_eq!(args.len(), 16, "FileFunction::call requires exactly 16 arguments");
 
-        let method = match args.first() {
-            Some(m) => m.to_uppercase(),
-            None => return "FileFunction: missing method".to_string(),
-        };
-        let rest = &args[1..];
-
-        let mut args_ext = vec![source, paths, name, method];
-        args_ext.extend_from_slice(rest);
+        let mut args_ext = args.to_vec();
+        args_ext[0] = self.path.clone();
+        args_ext[1] = shell.get_path().join(":");
+        args_ext[2] = self.name.clone();
+        args_ext[3] = args_ext[3].to_uppercase();
 
         let child = Command::new(&self.path)
             .args(args_ext)
@@ -225,10 +223,6 @@ impl Shell {
         prompts.push(Box::new(BuiltinPrompt {
             name: "system".to_string(),
             value: prompts::DEFAULT_SYSTEM.to_string(),
-        }));
-        prompts.push(Box::new(BuiltinPrompt {
-            name: "cmdlang".to_string(),
-            value: cmdlang::CMDLANG_PROMPT.to_string(),
         }));
         prompts.push(Box::new(BuiltinPrompt {
             name: "function_call".to_string(),
